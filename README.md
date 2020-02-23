@@ -2,7 +2,7 @@
 
 An image resizer algorithm.
 
-##What can it do?
+## What can it do?
 
 Original image: 
 ![](bottleRightCamLeft.jpg)
