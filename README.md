@@ -1,6 +1,13 @@
 # What is this?
 
-An image resizer algorithm
+An image resizer algorithm.
+
+##What can it do?
+Original image: 
+![](bottleRightCamLeft.jpg)
+
+Cut out image:
+![](resukt.jpg)
 
 ## How to use
 
