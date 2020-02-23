@@ -1,5 +1,6 @@
 # USAGE
-# python click_and_crop.py --image jurassic_park_kitchen.jpg
+# python click_and_crop.py --image jurassic_park_kitchen.jpg --smoothen 1 for Convolution layers
+# python click_and_crop.py --image jurassic_park_kitchen.jpg for just the image resizer
 
 # import the necessary packages
 import argparse
@@ -8,7 +9,6 @@ import numpy as np
 import math
 import os
 import sys
-
 # initialize the list of reference points and boolean indicating
 # whether cropping is being performed or not
 cropping = False
@@ -17,14 +17,19 @@ refPt = []
 num = 0
 
 def draw(A):
-    cv2.circle(image, (A[0], A[1]), 7, (0,255,0), -1)
+    cv2.circle(image, (A[0], A[1]), 6, (0,255,0), -1)
     cv2.imshow('image',image)
 
 def line(A, B):
-    cv2.line(image,(round(A[0]),round(A[1])),(round(B[0]),round(B[1])),(255,255,255),5)
+    cv2.line(image,(round(A[0]),round(A[1])),(round(B[0]),round(B[1])),(255,255,255),4)
     
 def vectorLength(a):
     return math.sqrt(a[0]**2 + a[1]**2)
+
+def getFunc(x, y):
+    a = round((x[1]-y[1])/(x[0]-y[0]))
+    b = x[1]-x[0]*a
+    return [a, b]
 
 def alphaFinder(a, b, calculateBeta):        
     def checkAlphaBetaValid(alpha, beta):
@@ -74,15 +79,15 @@ def transformFunction(A, B, C, D):
     ADy = float(DAfter[1]-AAfter[1])
     BCy = float(CAfter[1]-BAfter[1])
     ABx = float(BAfter[0]-AAfter[0])
-    def calculateBeta(alpha):
-        return (alpha*AGx-ABx)/BCx
     def transform(point):
+        AG = transposeAndMI(point)
+        AGx = AG[0]
+        AGy = AG[1]
         try:
-            AG = transposeAndMI(point)
-            AGx = AG[0]
-            AGy = AG[1]
             a = (AGx*BCy-AGx*ADy-ABx*ADy-AGy*BCx)/(AGx*ADy)
             b = (ABx*ADy-ABx*BCy)/(AGx*ADy)
+            def calculateBeta(alpha):
+                return (alpha*AGx-ABx)/BCx
             result = alphaFinder(a, b, calculateBeta)
             if result == None:
                 raise RuntimeError
@@ -118,17 +123,10 @@ def Convolution(blank_image, kernel):
     for y in range (diff, height-diff):
         for x in range (diff, width-diff):
             sums = [0, 0, 0]
-#            sumR = 0
-#            sumG = 0
-#            sumB = 0
             for i in range(-diff, diff + 1):
                 for j in range(-diff, diff + 1):
-                    sums = [sums[w] + blank_image[y+i, x+j][w] * kernel[j+1][i+1] for w in range(0, 3)]
-#                    sumR += blank_image[y+i, x+j][2]*kernel[j+1][i+1]
-#                    sumG += blank_image[y+i, x+j][1]*kernel[j+1][i+1]
-#                    sumB += blank_image[y+i, x+j][0]*kernel[j+1][i+1]
-#            new[y, x] = [limit(sumB), limit(sumG), limit(sumR)]
-            new[y, x] = [limit(aSum) for aSum in range(0, 3)]
+                    sums = [sums[w] + blank_image[y+i, x+j][w]*kernel[j+1][i+1] for w in range(3)]
+            new[y, x] = [limit(sums[w]) for w in range(3)]
     return new
 
 def normalizeKernel(kernel, factor):
@@ -156,11 +154,8 @@ def imageProcess():
     I = [-BD[0]+D[0], -BD[1]+D[1]]
     draw([round(O[0]), round(O[1])])
     draw([round(I[0]), round(I[1])])
-    line(O, I)
-    line(A, C)
     transformedO = round(2 + resizeRatio * transformF(O)[0])
     transformedI = round(2 + resizeRatio * transformF(I)[1])
-    print("transformedO: ", transformF(O))
     blank_image = np.zeros((transformedI, transformedO, 3),np.uint8)
     for y in range(0, image.shape[0]):
         for x in range(0, image.shape[1]):
@@ -171,8 +166,11 @@ def imageProcess():
     emboss3 = [[-2, -1, 0],[-1, 1, 1],[0, 1, 2]]
     gaussianBlur5 = normalizeKernel([[1, 4, 6, 4, 1],[4, 16, 24, 16, 4],[6, 24, 36, 24, 6],[4, 16, 24, 16, 4],[1, 4, 6, 4, 1]], 1.0/256)
     sharpen5 = normalizeKernel([[1, 4, 6, 4, 1],[4, 16, 24, 16, 4],[6, 24, -476, 24, 6],[4, 16, 24, 16, 4],[1, 4, 6, 4, 1]], -1.0/256)
-    #blank_image = Convolution(blank_image, gaussianBlur5)
-    #blank_image = Convolution(blank_image, sharpen5)
+    if check == 1:
+        blank_image = Convolution(blank_image, gaussianBlur3)
+        blank_image = Convolution(blank_image, sharpen3)
+    else:
+        pass
     cv2.imwrite('resukt.jpg', blank_image)
     print("Done")
     return
@@ -197,7 +195,7 @@ def click_and_crop(event, x, y, flags, param):
             num = 0
             refPt = []
 
-            #sys.exit()
+            sys.exit()
             
 	# check to see if the left mouse button was released
 #	elif event == cv2.EVENT_LBUTTONUP:
@@ -213,11 +211,18 @@ def click_and_crop(event, x, y, flags, param):
 # construct the argument parser and parse the arguments
 ap = argparse.ArgumentParser()
 ap.add_argument("-i", "--image", required=True, help="Path to the image")
+ap.add_argument("-int", "--smoothen", required=False)
 args = vars(ap.parse_args())
 
 # load the image, clone it, and setup the mouse callback function
-image = cv2.imread(args["image"])
-clone = image.copy()
+check = args["smoothen"]
+img = cv2.imread(args["image"])
+if img.shape[0]>800 or img.shape[1]>800:
+    height = img.shape[0]
+    width = img.shape[1]
+    image = cv2.resize(img, (round(800/height*width), 800), interpolation = cv2.INTER_AREA)
+else:
+    image = img
 cv2.namedWindow("image")
 cv2.setMouseCallback("image", click_and_crop)
 cv2.imshow("image", image)
