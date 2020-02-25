@@ -19,6 +19,8 @@ Run this in folder containing the file in cmd:
 python click_and_crop.py --image jurassic_park_kitchen.jpg
 ```
 
+Click on the 4 corner of the image that you want to cut out. Click again to get the image out.
+
 
 ## Contributing
 Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
